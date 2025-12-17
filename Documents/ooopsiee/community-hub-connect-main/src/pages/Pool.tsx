@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { 
-  CalendarIcon, Clock, Users, Waves, Shield, Sun, 
-  Check, Star, CreditCard 
+import {
+  CalendarIcon, Clock, Users, Waves, Shield, Sun,
+  Check, Star, CreditCard
 } from "lucide-react";
 import poolImg from "@/assets/pool.jpg";
+import api from "@/lib/api";
 
 const sessions = [
   { time: "6:00 AM - 8:00 AM", available: 15, price: 20 },
@@ -24,23 +27,23 @@ const sessions = [
 ];
 
 const memberships = [
-  { 
-    name: "Daily Pass", 
-    price: 30, 
+  {
+    name: "Daily Pass",
+    price: 30,
     period: "day",
     features: ["Single day access", "Locker included", "Towel service"],
     popular: false
   },
-  { 
-    name: "Monthly", 
-    price: 250, 
+  {
+    name: "Monthly",
+    price: 250,
     period: "month",
     features: ["Unlimited sessions", "Free locker", "10% restaurant discount", "Guest pass (2x)"],
     popular: true
   },
-  { 
-    name: "Annual", 
-    price: 2000, 
+  {
+    name: "Annual",
+    price: 2000,
     period: "year",
     features: ["Unlimited access", "Premium locker", "20% all discounts", "Free swim lessons", "Priority booking"],
     popular: false
@@ -58,6 +61,107 @@ export default function Pool() {
   const [date, setDate] = useState<Date>();
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [swimmers, setSwimmers] = useState(1);
+
+  // Form state
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+
+  // Loading and message state
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  const validatePhone = (phone: string) => {
+    // Accepts 10 digits (e.g., 0201234567) OR +233 followed by 9 digits (e.g., +233201234567)
+    const phoneRegex = /^(\d{10}|\+233\d{9})$/;
+    return phoneRegex.test(phone.replace(/\s/g, '')); // Remove spaces before checking
+  };
+
+  const handleSessionBooking = async () => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+
+    if (!date || !selectedSession || !fullName || !phone) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields.' });
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      setMessage({ type: 'error', text: 'Invalid phone number. Use 10 digits (020...) or +233 format.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      const selectedSessionData = sessions.find(s => s.time === selectedSession);
+      const totalPrice = (selectedSessionData?.price || 0) * swimmers;
+
+      await api.post('/bookings/', {
+        guest_name: fullName,
+        booking_type: "Pool Session",
+        date: `${format(date, "PPP")} | Session: ${selectedSession} | Swimmers: ${swimmers} | Phone: ${phone}`,
+        status: "Pending"
+      });
+
+      setMessage({ type: 'success', text: 'Pool session booked successfully!' });
+      setDate(undefined);
+      setSelectedSession(null);
+      setFullName("");
+      setPhone("");
+      setSwimmers(1);
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Booking error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to book session.';
+      setMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMembershipPurchase = async (membershipName: string, price: number) => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+
+    if (!fullName || !phone) {
+      setMessage({ type: 'error', text: 'Please enter your name and phone number first.' });
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      setMessage({ type: 'error', text: 'Invalid phone number. Use 10 digits (020...) or +233 format.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      await api.post('/bookings/', {
+        guest_name: fullName,
+        booking_type: `Pool Membership - ${membershipName}`,
+        date: `Membership: ${membershipName} | Price: ₵${price} | Phone: ${phone}`,
+        status: "Pending"
+      });
+
+      setMessage({ type: 'success', text: `${membershipName} membership request submitted!` });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Membership error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to process membership.';
+      setMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Layout>
@@ -79,6 +183,13 @@ export default function Pool() {
       </section>
 
       <div className="container mx-auto px-4 py-12">
+        {/* Success/Error Message */}
+        {message && (
+          <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg animate-scale-in ${message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`}>
+            {message.text}
+          </div>
+        )}
         {/* Features */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
           {features.map((feature, i) => (
@@ -94,7 +205,7 @@ export default function Pool() {
           {/* Session Booking */}
           <div>
             <h2 className="section-title text-3xl mb-6">Book a Session</h2>
-            
+
             <Card className="shadow-medium">
               <CardContent className="p-6 space-y-6">
                 {/* Date Picker */}
@@ -157,16 +268,30 @@ export default function Pool() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Full Name</label>
-                    <Input placeholder="Kwame Mensah" />
+                    <Input
+                      placeholder="Dauda Kwame"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Phone</label>
-                    <Input placeholder="+233 20 000 0000" />
+                    <Input
+                      placeholder="+233 20 000 0000"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
                   </div>
                 </div>
 
-                <Button className="w-full" size="lg" variant="gold" disabled={!date || !selectedSession}>
-                  Book Session - ₵{selectedSession ? (sessions.find(s => s.time === selectedSession)?.price || 0) * swimmers : 0}
+                <Button
+                  className="w-full"
+                  size="lg"
+                  variant="gold"
+                  disabled={!date || !selectedSession || isLoading}
+                  onClick={handleSessionBooking}
+                >
+                  {isLoading ? 'Processing...' : `Book Session - ₵${selectedSession ? (sessions.find(s => s.time === selectedSession)?.price || 0) * swimmers : 0}`}
                 </Button>
               </CardContent>
             </Card>
@@ -175,10 +300,10 @@ export default function Pool() {
           {/* Memberships */}
           <div>
             <h2 className="section-title text-3xl mb-6">Memberships</h2>
-            
+
             <div className="space-y-4">
               {memberships.map((membership, i) => (
-                <Card 
+                <Card
                   key={membership.name}
                   className={cn(
                     "relative overflow-hidden transition-all hover:shadow-medium animate-fade-in",
@@ -211,9 +336,14 @@ export default function Pool() {
                         </li>
                       ))}
                     </ul>
-                    <Button className="w-full" variant={membership.popular ? "gold" : "outline"}>
+                    <Button
+                      className="w-full"
+                      variant={membership.popular ? "gold" : "outline"}
+                      onClick={() => handleMembershipPurchase(membership.name, membership.price)}
+                      disabled={isLoading}
+                    >
                       <CreditCard className="w-4 h-4 mr-2" />
-                      Get {membership.name}
+                      {isLoading ? 'Processing...' : `Get ${membership.name}`}
                     </Button>
                   </CardContent>
                 </Card>

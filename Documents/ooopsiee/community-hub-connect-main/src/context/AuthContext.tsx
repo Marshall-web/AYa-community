@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import api from "@/lib/api";
 
 type User = {
     id: string;
-    name: string;
+    username: string;
     email: string;
+    first_name?: string;
     role: "user" | "admin";
 };
 
@@ -23,76 +25,73 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // Check for stored user on mount
-        const storedUser = localStorage.getItem("user");
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
-        }
-        setIsLoading(false);
+        // Check if user is already authenticated on mount
+        checkAuth();
     }, []);
 
-    const login = async (email: string, password: string) => {
-        return new Promise<void>((resolve, reject) => {
-            setTimeout(() => {
-                // For demo purposes, we'll allow any login if it matches a stored user
-                // OR if it's a fresh login, we'll just simulate success for now
-                // BUT to be more realistic, let's check against "users" in localStorage
+    const checkAuth = async () => {
+        try {
+            const response = await api.get('/auth/me/');
+            setUser(response.data);
+        } catch (error) {
+            // User is not authenticated
+            setUser(null);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-                const users = JSON.parse(localStorage.getItem("users") || "[]");
-                const foundUser = users.find((u: any) => u.email === email && u.password === password);
+    const login = async (emailOrUsername: string, password: string) => {
+        try {
+            const response = await api.post('/auth/login/', {
+                username: emailOrUsername, // Backend accepts username
+                password: password
+            });
 
-                if (foundUser) {
-                    const userData = { id: foundUser.id, name: foundUser.name, email: foundUser.email, role: foundUser.role || "user" };
-                    setUser(userData);
-                    localStorage.setItem("user", JSON.stringify(userData));
-                    resolve();
-                } else {
-                    // Fallback for demo: if no users exist yet, allow admin/admin
-                    if (email === "admin" && password === "admin123") {
-                        const adminUser = { id: "admin-1", name: "Administrator", email: "admin", role: "admin" as const };
-                        setUser(adminUser);
-                        localStorage.setItem("user", JSON.stringify(adminUser));
-                        resolve();
-                    } else {
-                        reject(new Error("Invalid credentials"));
-                    }
-                }
-            }, 1000);
-        });
+            if (response.data.user) {
+                setUser(response.data.user);
+                localStorage.setItem("user", JSON.stringify(response.data.user));
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.error || "Invalid credentials";
+            throw new Error(errorMessage);
+        }
     };
 
     const signup = async (name: string, email: string, password: string) => {
-        return new Promise<void>((resolve, reject) => {
-            setTimeout(() => {
-                const users = JSON.parse(localStorage.getItem("users") || "[]");
+        try {
+            // Extract first name from full name
+            const firstName = name.split(' ')[0];
 
-                if (users.find((u: any) => u.email === email)) {
-                    reject(new Error("User already exists"));
-                    return;
-                }
+            // Use email as username for simplicity
+            const username = email.split('@')[0];
 
-                const newUser = {
-                    id: Math.random().toString(36).substr(2, 9),
-                    name,
-                    email,
-                    password, // In a real app, NEVER store plain text passwords
-                    role: "user",
-                };
+            const response = await api.post('/auth/register/', {
+                username: username,
+                email: email,
+                password: password,
+                first_name: firstName
+            });
 
-                users.push(newUser);
-                localStorage.setItem("users", JSON.stringify(users));
-
-                const userData = { id: newUser.id, name: newUser.name, email: newUser.email, role: "user" as const };
-                setUser(userData);
-                localStorage.setItem("user", JSON.stringify(userData));
-                resolve();
-            }, 1000);
-        });
+            if (response.data.user) {
+                setUser(response.data.user);
+                localStorage.setItem("user", JSON.stringify(response.data.user));
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.error || "Could not create account";
+            throw new Error(errorMessage);
+        }
     };
 
-    const logout = () => {
-        setUser(null);
-        localStorage.removeItem("user");
+    const logout = async () => {
+        try {
+            await api.post('/auth/logout/');
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            setUser(null);
+            localStorage.removeItem("user");
+        }
     };
 
     return (

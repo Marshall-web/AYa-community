@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +11,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { 
-  CalendarIcon, Users, Music, Utensils, Camera, 
-  Mic, Sparkles, Check, Clock, Phone 
+import {
+  CalendarIcon, Users, Music, Utensils, Camera,
+  Mic, Sparkles, Check, Clock, Phone
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import eventHallImg from "@/assets/event-hall.jpg";
+import api from "@/lib/api";
 
 const eventPackages = [
   {
@@ -73,6 +83,121 @@ export default function Events() {
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [eventType, setEventType] = useState("");
 
+  // Form state
+  const [guestCount, setGuestCount] = useState("");
+  const [duration, setDuration] = useState("4 hours");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [additionalDetails, setAdditionalDetails] = useState("");
+
+  // Loading and message state
+  const [isLoading, setIsLoading] = useState(false);
+  const [isConsultationOpen, setIsConsultationOpen] = useState(false);
+
+  // Consultation form state
+  const [consultName, setConsultName] = useState("");
+  const [consultPhone, setConsultPhone] = useState("");
+  const [consultEmail, setConsultEmail] = useState("");
+  const [consultDate, setConsultDate] = useState<Date>();
+  const [consultMessage, setConsultMessage] = useState("");
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  const validatePhone = (phone: string) => {
+    // Accepts 10 digits (e.g., 0201234567) OR +233 followed by 9 digits (e.g., +233201234567)
+    const phoneRegex = /^(\d{10}|\+233\d{9})$/;
+    return phoneRegex.test(phone.replace(/\s/g, '')); // Remove spaces before checking
+  };
+
+  const handleEventBooking = async () => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+
+    if (!eventType || !date || !selectedPackage || !name || !phone || !email || !guestCount) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields.' });
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      setMessage({ type: 'error', text: 'Invalid phone number. Use 10 digits (020...) or +233 format.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      await api.post('/bookings/', {
+        guest_name: name,
+        booking_type: `Event - ${eventType}`,
+        date: `${format(date, "PPP")} | Package: ${selectedPackage} | Guests: ${guestCount} | Duration: ${duration} | Phone: ${phone} | Email: ${email} | Details: ${additionalDetails}`,
+        status: "Pending"
+      });
+
+      setMessage({ type: 'success', text: 'Event booking request submitted successfully!' });
+      setDate(undefined);
+      setSelectedPackage(null);
+      setEventType("");
+      setGuestCount("");
+      setName("");
+      setPhone("");
+      setEmail("");
+      setAdditionalDetails("");
+      setDuration("4 hours");
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Event booking error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to submit booking.';
+      setMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConsultationSubmit = async () => {
+    if (!consultName || !consultPhone || !consultEmail || !consultDate) {
+      setMessage({ type: 'error', text: 'Please fill in all consultation fields.' });
+      return;
+    }
+
+    if (!validatePhone(consultPhone)) {
+      setMessage({ type: 'error', text: 'Invalid phone number. Use 10 digits (020...) or +233 format.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      await api.post('/bookings/', {
+        guest_name: consultName,
+        booking_type: 'Event Consultation',
+        date: `${format(consultDate, "PPP")} | Phone: ${consultPhone} | Email: ${consultEmail} | Message: ${consultMessage}`,
+        status: "Pending"
+      });
+
+      setMessage({ type: 'success', text: 'Consultation request submitted! We will contact you soon.' });
+      setConsultName("");
+      setConsultPhone("");
+      setConsultEmail("");
+      setConsultDate(undefined);
+      setConsultMessage("");
+      setIsConsultationOpen(false);
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Consultation booking error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to submit consultation request.';
+      setMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Layout>
       {/* Hero */}
@@ -93,13 +218,20 @@ export default function Events() {
       </section>
 
       <div className="container mx-auto px-4 py-12">
+        {/* Success/Error Message */}
+        {message && (
+          <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg animate-scale-in ${message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`}>
+            {message.text}
+          </div>
+        )}
         {/* Venue Features */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
           {[
-            { value: "500+", label: "Guest Capacity" },
-            { value: "5,000", label: "Square Meters" },
+            { value: "250+", label: "Guest Capacity" },
+            { value: "1,000", label: "Square Meters" },
             { value: "24/7", label: "Availability" },
-            { value: "100+", label: "Events Hosted" },
+            { value: "75+", label: "Events Hosted" },
           ].map((stat, i) => (
             <Card key={i} className="text-center p-6 animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
               <div className="text-3xl font-display font-bold text-accent mb-1">{stat.value}</div>
@@ -117,7 +249,7 @@ export default function Events() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {eventPackages.map((pkg, i) => (
-              <Card 
+              <Card
                 key={pkg.name}
                 className={cn(
                   "relative overflow-hidden cursor-pointer transition-all hover:shadow-medium animate-fade-in",
@@ -166,7 +298,7 @@ export default function Events() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Event Type</label>
-                    <select 
+                    <select
                       className="w-full h-11 px-3 rounded-lg border border-input bg-background"
                       value={eventType}
                       onChange={(e) => setEventType(e.target.value)}
@@ -179,7 +311,12 @@ export default function Events() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Expected Guests</label>
-                    <Input type="number" placeholder="Number of guests" />
+                    <Input
+                      type="number"
+                      placeholder="Number of guests"
+                      value={guestCount}
+                      onChange={(e) => setGuestCount(e.target.value)}
+                    />
                   </div>
                 </div>
 
@@ -200,7 +337,11 @@ export default function Events() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Event Duration</label>
-                    <select className="w-full h-11 px-3 rounded-lg border border-input bg-background">
+                    <select
+                      className="w-full h-11 px-3 rounded-lg border border-input bg-background"
+                      value={duration}
+                      onChange={(e) => setDuration(e.target.value)}
+                    >
                       <option>4 hours</option>
                       <option>8 hours</option>
                       <option>Full day (12 hours)</option>
@@ -228,26 +369,50 @@ export default function Events() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Your Name</label>
-                    <Input placeholder="Kwame Mensah" />
+                    <Input
+                      placeholder="Dauda Kwame"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Phone Number</label>
-                    <Input placeholder="+233 20 000 0000" />
+                    <Input
+                      placeholder="+233 20 000 0000"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Email Address</label>
-                  <Input type="email" placeholder="you@ghana.com" />
+                  <Input
+                    type="email"
+                    placeholder="you@ghana.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Additional Details</label>
-                  <Textarea placeholder="Tell us more about your event..." rows={4} />
+                  <Textarea
+                    placeholder="Tell us more about your event..."
+                    rows={4}
+                    value={additionalDetails}
+                    onChange={(e) => setAdditionalDetails(e.target.value)}
+                  />
                 </div>
 
-                <Button className="w-full" size="lg" variant="gold">
-                  Submit Booking Request
+                <Button
+                  className="w-full"
+                  size="lg"
+                  variant="gold"
+                  onClick={handleEventBooking}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Processing...' : 'Submit Booking Request'}
                 </Button>
               </CardContent>
             </Card>
@@ -280,13 +445,98 @@ export default function Events() {
               <p className="text-primary-foreground/80">Our event coordinators are ready to assist you.</p>
             </div>
             <div className="flex gap-4">
-              <Button variant="hero" size="lg">
+              <Button
+                variant="hero"
+                size="lg"
+                onClick={() => window.location.href = 'tel:+233542101122'}
+              >
                 <Phone className="w-4 h-4 mr-2" />
                 Call Us
               </Button>
-              <Button variant="heroOutline" size="lg">
-                Schedule Consultation
-              </Button>
+
+              <Dialog open={isConsultationOpen} onOpenChange={setIsConsultationOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="heroOutline" size="lg">
+                    Schedule Consultation
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="font-display text-2xl">Schedule a Consultation</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Your Name</label>
+                      <Input
+                        placeholder="Dauda Kwame"
+                        value={consultName}
+                        onChange={(e) => setConsultName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Phone Number</label>
+                      <Input
+                        placeholder="+233 20 000 0000"
+                        value={consultPhone}
+                        onChange={(e) => setConsultPhone(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Email Address</label>
+                      <Input
+                        type="email"
+                        placeholder="you@ghana.com"
+                        value={consultEmail}
+                        onChange={(e) => setConsultEmail(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Preferred Date</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !consultDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {consultDate ? format(consultDate, "PPP") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={consultDate}
+                            onSelect={setConsultDate}
+                            initialFocus
+                            className="pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Message (Optional)</label>
+                      <Textarea
+                        placeholder="Tell us about your event needs..."
+                        rows={3}
+                        value={consultMessage}
+                        onChange={(e) => setConsultMessage(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      variant="gold"
+                      onClick={handleConsultationSubmit}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Submitting...' : 'Request Consultation'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardContent>
         </Card>

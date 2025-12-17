@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,21 +6,22 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Radio, Mic, Clock, Calendar, Play, Volume2, 
-  MessageSquare, DollarSign, User, Check 
+import {
+  Radio, Mic, Clock, Calendar, Play, Pause, Volume2,
+  MessageSquare, DollarSign, User, Check
 } from "lucide-react";
 import radioImg from "@/assets/radio-station.jpg";
+import api from "@/lib/api";
 
 const schedule = {
   weekday: [
     { time: "6:00 AM", show: "Morning Devotion", host: "Pastor James", type: "Religious" },
     { time: "7:00 AM", show: "Wake Up Show", host: "DJ Mike", type: "Music" },
-    { time: "9:00 AM", show: "Community News", host: "Sarah Obi", type: "News" },
-    { time: "11:00 AM", show: "Business Hour", host: "Chidi Emmanuel", type: "Talk" },
+    { time: "9:00 AM", show: "Community News", host: "Sarah Kofi", type: "News" },
+    { time: "11:00 AM", show: "Business Hour", host: "Mensah Emmanuel", type: "Talk" },
     { time: "1:00 PM", show: "Afternoon Vibes", host: "DJ Kemi", type: "Music" },
     { time: "4:00 PM", show: "Youth Connect", host: "Tunde & Ada", type: "Talk" },
-    { time: "6:00 PM", show: "Evening News", host: "Sarah Obi", type: "News" },
+    { time: "6:00 PM", show: "Evening News", host: "Sarah Kofi", type: "News" },
     { time: "8:00 PM", show: "Night Grooves", host: "DJ Smooth", type: "Music" },
   ],
   weekend: [
@@ -28,7 +29,7 @@ const schedule = {
     { time: "10:00 AM", show: "Community Voices", host: "Various", type: "Talk" },
     { time: "12:00 PM", show: "Sports Central", host: "Emeka Sports", type: "Sports" },
     { time: "3:00 PM", show: "Weekend Party Mix", host: "DJ Thunder", type: "Music" },
-    { time: "7:00 PM", show: "Cultural Hour", host: "Chief Okonkwo", type: "Culture" },
+    { time: "7:00 PM", show: "Cultural Hour", host: "Chief sharrif", type: "Culture" },
     { time: "9:00 PM", show: "Late Night Jazz", host: "DJ Smooth", type: "Music" },
   ],
 };
@@ -42,17 +43,95 @@ const adSlots = [
 ];
 
 const presenters = [
-  { name: "DJ Mike", role: "Morning Show Host", speciality: "Afrobeats & Pop" },
-  { name: "Sarah Obi", role: "News Anchor", speciality: "Current Affairs" },
-  { name: "DJ Smooth", role: "Evening Host", speciality: "R&B & Jazz" },
-  { name: "Chidi Emmanuel", role: "Business Analyst", speciality: "Finance & Economy" },
+  { name: "DJ Oxygen", role: "Morning Show Host", speciality: "Afrobeats & Pop" },
+  { name: "Sarah Kofi", role: "News Anchor", speciality: "Current Affairs" },
+  { name: "DJ Apaka", role: "Evening Host", speciality: "Sports" },
+  { name: "Mensah Kwame", role: "Business Analyst", speciality: "Finance & Economy" },
 ];
 
 export default function RadioStation() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
+  // Audio Player State
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  // Form state
+  const [businessName, setBusinessName] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [numberOfSpots, setNumberOfSpots] = useState("1");
+  const [adScript, setAdScript] = useState("");
+
+  // Loading and message state
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const validatePhone = (phone: string) => {
+    // Accepts 10 digits (e.g., 0201234567) OR +233 followed by 9 digits (e.g., +233201234567)
+    const phoneRegex = /^(\d{10}|\+233\d{9})$/;
+    return phoneRegex.test(phone.replace(/\s/g, '')); // Remove spaces before checking
+  };
+
+  const handleAdSubmit = async () => {
+    if (!businessName || !contactPerson || !phone || !email || !selectedSlot || !adScript) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields.' });
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      setMessage({ type: 'error', text: 'Invalid phone number. Use 10 digits (020...) or +233 format.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      const slotData = adSlots.find(s => s.name === selectedSlot);
+      const cost = (slotData?.price || 0) * parseInt(numberOfSpots);
+
+      await api.post('/ad-requests/', {
+        business_name: businessName,
+        slot: `${selectedSlot} (${slotData?.time}) - ${numberOfSpots} spot(s)`,
+        cost: cost,
+        status: "Pending"
+      });
+
+      setMessage({ type: 'success', text: 'Advertisement request submitted successfully!' });
+      setBusinessName("");
+      setContactPerson("");
+      setPhone("");
+      setEmail("");
+      setSelectedSlot(null);
+      setNumberOfSpots("1");
+      setAdScript("");
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Ad request error:', error);
+      setMessage({ type: 'error', text: 'Failed to submit request. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Layout>
+      {/* Audio Element - Using a reliable stream URL as placeholder */}
+      <audio ref={audioRef} src="https://stream.zeno.fm/0r0xa792kwzuv" preload="none" />
+
       {/* Hero */}
       <section className="relative h-[50vh] min-h-[400px]">
         <img src={radioImg} alt="Radio Station" className="w-full h-full object-cover" />
@@ -66,19 +145,26 @@ export default function RadioStation() {
             <p className="text-xl text-primary-foreground/90 max-w-xl mx-auto mb-6">
               Your voice in the community. Tune in, advertise, and stay connected.
             </p>
-            <Button variant="hero" size="lg">
-              <Play className="w-5 h-5 mr-2" />
-              Listen Live
+            <Button variant="hero" size="lg" onClick={togglePlay}>
+              {isPlaying ? <Pause className="w-5 h-5 mr-2" /> : <Play className="w-5 h-5 mr-2" />}
+              {isPlaying ? "Pause Radio" : "Listen Live"}
             </Button>
           </div>
         </div>
       </section>
 
       <div className="container mx-auto px-4 py-12">
+        {/* Success/Error Message */}
+        {message && (
+          <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg animate-scale-in ${message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`}>
+            {message.text}
+          </div>
+        )}
         {/* Live Now Banner */}
         <Card className="bg-accent/10 border-accent/30 mb-12 overflow-hidden">
           <CardContent className="p-6 flex items-center gap-6">
-            <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center animate-pulse-glow">
+            <div className={`w-16 h-16 rounded-full bg-accent flex items-center justify-center ${isPlaying ? 'animate-pulse-glow' : ''}`}>
               <Volume2 className="w-8 h-8 text-accent-foreground" />
             </div>
             <div className="flex-1">
@@ -86,9 +172,9 @@ export default function RadioStation() {
               <h3 className="font-display text-xl font-bold">Morning Wake Up Show with DJ Mike</h3>
               <p className="text-muted-foreground">Playing the best Afrobeats to start your day!</p>
             </div>
-            <Button variant="gold">
-              <Play className="w-4 h-4 mr-2" />
-              Tune In
+            <Button variant="gold" onClick={togglePlay}>
+              {isPlaying ? <Pause className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+              {isPlaying ? "Pause" : "Tune In"}
             </Button>
           </CardContent>
         </Card>
@@ -164,11 +250,10 @@ export default function RadioStation() {
                     <button
                       key={slot.name}
                       onClick={() => setSelectedSlot(slot.name)}
-                      className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left ${
-                        selectedSlot === slot.name
-                          ? "border-accent bg-accent/10"
-                          : "border-border hover:border-accent/50"
-                      }`}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left ${selectedSlot === slot.name
+                        ? "border-accent bg-accent/10"
+                        : "border-border hover:border-accent/50"
+                        }`}
                     >
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
@@ -201,20 +286,37 @@ export default function RadioStation() {
                   <CardContent className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">Business Name</label>
-                      <Input placeholder="Your business name" />
+                      <Input
+                        placeholder="Your business name"
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-2">Contact Person</label>
-                      <Input placeholder="Full name" />
+                      <Input
+                        placeholder="Full name"
+                        value={contactPerson}
+                        onChange={(e) => setContactPerson(e.target.value)}
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium mb-2">Phone</label>
-                        <Input placeholder="+233 20 000 0000" />
+                        <Input
+                          placeholder="+233 20 000 0000"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">Email</label>
-                        <Input type="email" placeholder="email@example.com" />
+                        <Input
+                          type="email"
+                          placeholder="email@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
                       </div>
                     </div>
                     <div>
@@ -234,7 +336,11 @@ export default function RadioStation() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-2">Number of Spots</label>
-                      <select className="w-full h-11 px-3 rounded-lg border border-input bg-background">
+                      <select
+                        className="w-full h-11 px-3 rounded-lg border border-input bg-background"
+                        value={numberOfSpots}
+                        onChange={(e) => setNumberOfSpots(e.target.value)}
+                      >
                         {[1, 2, 3, 5, 10, 20].map(n => (
                           <option key={n} value={n}>{n} spot{n > 1 ? 's' : ''}</option>
                         ))}
@@ -242,7 +348,12 @@ export default function RadioStation() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-2">Advertisement Script</label>
-                      <Textarea placeholder="Write your advertisement script here..." rows={4} />
+                      <Textarea
+                        placeholder="Write your advertisement script here..."
+                        rows={4}
+                        value={adScript}
+                        onChange={(e) => setAdScript(e.target.value)}
+                      />
                     </div>
                     <div className="bg-secondary rounded-xl p-4">
                       <div className="flex justify-between items-center">
@@ -252,8 +363,14 @@ export default function RadioStation() {
                         </span>
                       </div>
                     </div>
-                    <Button className="w-full" size="lg" variant="gold">
-                      Submit Advertisement Request
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      variant="gold"
+                      onClick={handleAdSubmit}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Processing...' : 'Submit Advertisement Request'}
                     </Button>
                   </CardContent>
                 </Card>
@@ -287,20 +404,20 @@ export default function RadioStation() {
                   <div>
                     <h4 className="font-display text-xl font-bold mb-4">About Community FM</h4>
                     <p className="text-primary-foreground/80">
-                      Broadcasting since 2005, Community FM 98.5 is your trusted source for local news, 
-                      entertainment, and community engagement. We serve over 500,000 listeners daily.
+                      Broadcasting since 2005, Community FM 100.3 is your trusted source for local news,
+                      entertainment, and community engagement. We serve over 10,000 listeners daily.
                     </p>
                   </div>
                   <div>
                     <h4 className="font-display text-xl font-bold mb-4">Frequency</h4>
-                    <div className="text-4xl font-bold text-accent">98.5 FM</div>
+                    <div className="text-4xl font-bold text-accent">100.3 FM</div>
                     <p className="text-primary-foreground/80 mt-2">Available across the region</p>
                   </div>
                   <div>
                     <h4 className="font-display text-xl font-bold mb-4">Contact Studio</h4>
                     <p className="text-primary-foreground/80 mb-2">Request songs, dedications, or share your story:</p>
                     <p className="font-semibold">+233 20 985 0985</p>
-                    <p className="text-sm text-primary-foreground/60">studio@communityfm.ng</p>
+                    <p className="text-sm text-primary-foreground/60">studio@communityfm.gh</p>
                   </div>
                 </div>
               </CardContent>

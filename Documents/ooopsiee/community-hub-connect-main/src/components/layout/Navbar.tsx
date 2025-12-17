@@ -36,7 +36,7 @@ export function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-display text-xl font-bold">CC</span>
+              <span className="text-primary-foreground font-display text-xl font-bold">AYA</span>
             </div>
             <div className="hidden sm:block">
               <span className="font-display text-xl font-bold text-foreground">Community</span>
@@ -72,7 +72,7 @@ export function Navbar() {
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="flex items-center justify-start gap-2 p-2">
                     <div className="flex flex-col space-y-1 leading-none">
-                      <p className="font-medium">{user.name}</p>
+                      <p className="font-medium">{user.first_name || user.username}</p>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
                   </div>
@@ -136,10 +136,10 @@ export function Navbar() {
                   <div className="w-full space-y-2">
                     <div className="flex items-center gap-3 px-4 py-2">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="font-bold text-primary">{getAcronym(user.email)}</span>
+                        <span className="font-bold text-primary">{getAcronym(user.first_name || user.username)}</span>
                       </div>
                       <div>
-                        <p className="font-medium">{user.name}</p>
+                        <p className="font-medium">{user.first_name || user.username}</p>
                         <p className="text-xs text-muted-foreground">{user.email}</p>
                       </div>
                     </div>

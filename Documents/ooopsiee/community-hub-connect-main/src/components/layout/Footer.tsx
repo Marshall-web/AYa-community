@@ -10,7 +10,7 @@ export function Footer() {
           <div>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center">
-                <span className="text-accent-foreground font-display text-xl font-bold">CC</span>
+                <span className="text-accent-foreground font-display text-xl font-bold">AYA</span>
               </div>
               <div>
                 <span className="font-display text-xl font-bold">Community</span>
@@ -19,7 +19,7 @@ export function Footer() {
             </div>
             <p className="text-primary-foreground/80 leading-relaxed">
               Your home for dining, relaxation, celebrations, and entertainment. 
-              Serving our community with excellence since 1998.
+              Serving our community with excellence.
             </p>
           </div>
 
@@ -53,7 +53,7 @@ export function Footer() {
               <li className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-accent mt-0.5" />
                 <span className="text-primary-foreground/80">
-                  123 Community Avenue<br />Accra, Ghana
+                  AYA Community Avenue<br />Ampain, Ghana
                 </span>
               </li>
               <li className="flex items-center gap-3">
@@ -62,7 +62,7 @@ export function Footer() {
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-accent" />
-                <span className="text-primary-foreground/80">info@communitycenter.ng</span>
+                <span className="text-primary-foreground/80">info@ayacommunitycenter.gh</span>
               </li>
               <li className="flex items-start gap-3">
                 <Clock className="w-5 h-5 text-accent mt-0.5" />
@@ -96,7 +96,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-primary-foreground/20 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-primary-foreground/60 text-sm">
-            © 2024 Community Center. All rights reserved.
+            © 2025 AYA Community Center. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm">
             <Link to="/privacy" className="text-primary-foreground/60 hover:text-accent transition-colors">

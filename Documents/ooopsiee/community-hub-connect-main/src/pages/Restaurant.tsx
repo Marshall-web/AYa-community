@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,34 +10,116 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { 
-  CalendarIcon, Clock, Users, ShoppingBag, Plus, Minus, 
-  Phone, MapPin, ChefHat, Star, Truck 
+import {
+  CalendarIcon, Clock, Users, ShoppingBag, Plus, Minus,
+  Phone, MapPin, ChefHat, Star, Truck
 } from "lucide-react";
 import restaurantImg from "@/assets/restaurant.jpg";
+import api from "@/lib/api";
 
 const menuCategories = ["All", "Starters", "Main Course", "Grills", "Desserts", "Drinks"];
 
-const menuItems = [
-  { id: 1, name: "Jollof Rice Supreme", category: "Main Course", price: 35, image: "🍚", description: "Smoky party jollof with grilled chicken", rating: 4.9 },
-  { id: 2, name: "Light Soup", category: "Starters", price: 25, image: "🍲", description: "Spicy goat light soup", rating: 4.8 },
-  { id: 3, name: "Kebab Platter", category: "Grills", price: 40, image: "🥩", description: "Traditional grilled beef skewers", rating: 4.9 },
-  { id: 4, name: "Fried Plantain", category: "Starters", price: 10, image: "🍌", description: "Sweet ripe plantains fried golden", rating: 4.7 },
-  { id: 5, name: "Fufu & Goat Soup", category: "Main Course", price: 45, image: "🥘", description: "Fufu with goat meat soup", rating: 4.8 },
-  { id: 6, name: "Grilled Fish", category: "Grills", price: 55, image: "🐟", description: "Whole tilapia with pepper sauce", rating: 4.9 },
-  { id: 7, name: "Sobolo", category: "Drinks", price: 15, image: "🍹", description: "Ghanaian hibiscus drink", rating: 4.6 },
-  { id: 8, name: "Bofrot", category: "Desserts", price: 8, image: "🧁", description: "Sweet fried dough balls", rating: 4.5 },
-];
+// Helper to construct full image URL
+const getImageUrl = (imagePath?: string) => {
+  if (!imagePath) return null;
+  // If it's a relative path (starts with /), prepend backend URL
+  if (imagePath.startsWith('/')) {
+    return `http://localhost:8000${imagePath}`;
+  }
+  return imagePath;
+};
+
+// Interface for Menu Item
+interface MenuItem {
+  id: number;
+  name: string;
+  category: string;
+  price: number;
+  image?: string;
+  description?: string;
+  rating?: number;
+  status?: string;
+}
 
 export default function Restaurant() {
+  const [activeTab, setActiveTab] = useState("menu");
   const [activeCategory, setActiveCategory] = useState("All");
-  const [cart, setCart] = useState<{id: number; quantity: number}[]>([]);
+  const [cart, setCart] = useState<{ id: number; quantity: number }[]>([]);
   const [date, setDate] = useState<Date>();
   const [guests, setGuests] = useState(2);
   const [orderType, setOrderType] = useState<"dine" | "delivery">("dine");
 
-  const filteredMenu = activeCategory === "All" 
-    ? menuItems 
+  // Dynamic Menu State
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [isLoadingMenu, setIsLoadingMenu] = useState(true);
+
+  // Form state
+  const [bookingName, setBookingName] = useState("");
+  const [bookingPhone, setBookingPhone] = useState("");
+  const [bookingTime, setBookingTime] = useState("12:00 PM");
+  const [specialRequests, setSpecialRequests] = useState("");
+
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryPhone, setDeliveryPhone] = useState("");
+  const [deliveryInstructions, setDeliveryInstructions] = useState("");
+
+  // Loading and message state
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+
+  // Fetch Menu Items
+  useEffect(() => {
+    const fetchMenu = async () => {
+      try {
+        const response = await api.get('/menu-items/');
+        // Map backend data to frontend interface if needed, or use directly if matches
+        // Assuming backend returns list of objects with name, category, price, status
+        // We might need to add default images or descriptions if backend doesn't provide them yet
+        const mappedItems = response.data.map((item: any) => ({
+          ...item,
+          image: item.image || getCategoryImage(item.category), // Helper for default images
+          description: item.description || "Delicious freshly prepared dish",
+          rating: item.rating || 4.5
+        }));
+        setMenuItems(mappedItems);
+      } catch (error) {
+        console.error("Failed to fetch menu:", error);
+        setMessage({ type: 'error', text: "Failed to load menu items." });
+      } finally {
+        setIsLoadingMenu(false);
+      }
+    };
+
+    fetchMenu();
+  }, []);
+
+  // Helper to get default emoji/image based on category
+  const getCategoryImage = (category: string) => {
+    switch (category) {
+      case "Starters": return "🍲";
+      case "Main Course": return "🥘";
+      case "Grills": return "🥩";
+      case "Desserts": return "🧁";
+      case "Drinks": return "🍹";
+      default: return "🍽️";
+    }
+  };
+
+  // Pre-fill user data if logged in
+  useEffect(() => {
+    if (user) {
+      setBookingName(user.first_name || user.username);
+      // If user has a phone number in profile, we could pre-fill it here too
+    }
+  }, [user]);
+
+
+
+  const filteredMenu = activeCategory === "All"
+    ? menuItems
     : menuItems.filter(item => item.category === activeCategory);
 
   const addToCart = (id: number) => {
@@ -65,6 +149,117 @@ export default function Restaurant() {
     return total + (item?.price || 0) * cartItem.quantity;
   }, 0);
 
+
+
+  const handleCheckout = () => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+
+    if (cart.length === 0) return;
+
+    // Switch to delivery tab to complete order
+    setActiveTab("delivery");
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const validatePhone = (phone: string) => {
+    // Accepts 10 digits (e.g., 0201234567) OR +233 followed by 9 digits (e.g., +233201234567)
+    const phoneRegex = /^(\d{10}|\+233\d{9})$/;
+    return phoneRegex.test(phone.replace(/\s/g, '')); // Remove spaces before checking
+  };
+
+  const handleDeliveryOrder = async () => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+
+    if (cart.length === 0 || !deliveryAddress || !deliveryPhone) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields and add items to cart.' });
+      return;
+    }
+
+    if (!validatePhone(deliveryPhone)) {
+      setMessage({ type: 'error', text: 'Invalid phone number. Use 10 digits (020...) or +233 format.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      const orderItems = cart.map(cartItem => {
+        const item = menuItems.find(m => m.id === cartItem.id);
+        return `${item?.name} x${cartItem.quantity}`;
+      }).join(", ");
+
+      await api.post('/orders/', {
+        customer_name: deliveryAddress, // Keeping address as customer identifier for delivery for now, or could combine
+        items: `${orderItems} | Phone: ${deliveryPhone} | Instructions: ${deliveryInstructions}`,
+        total_price: cartTotal,
+        status: "Pending"
+      });
+
+      setMessage({ type: 'success', text: 'Delivery order placed successfully!' });
+      setCart([]);
+      setDeliveryAddress("");
+      setDeliveryPhone("");
+      setDeliveryInstructions("");
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Delivery order error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to place delivery order.';
+      setMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTableBooking = async () => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+
+    if (!date || !bookingName || !bookingPhone) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields.' });
+      return;
+    }
+
+    if (!validatePhone(bookingPhone)) {
+      setMessage({ type: 'error', text: 'Invalid phone number. Use 10 digits (020...) or +233 format.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      await api.post('/bookings/', {
+        guest_name: bookingName,
+        booking_type: "Restaurant",
+        date: `${format(date, "PPP")} at ${bookingTime} | Guests: ${guests} | Requests: ${specialRequests}`,
+        status: "Pending"
+      });
+
+      setMessage({ type: 'success', text: 'Table reservation confirmed!' });
+      setDate(undefined);
+      setBookingName("");
+      setBookingPhone("");
+      setSpecialRequests("");
+      setGuests(2);
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Booking error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to book table.';
+      setMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Layout>
       {/* Hero */}
@@ -85,7 +280,14 @@ export default function Restaurant() {
       </section>
 
       <div className="container mx-auto px-4 py-12">
-        <Tabs defaultValue="menu" className="space-y-8">
+        {/* Success/Error Message */}
+        {message && (
+          <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg animate-scale-in ${message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`}>
+            {message.text}
+          </div>
+        )}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 bg-secondary p-1 rounded-xl">
             <TabsTrigger value="menu" className="rounded-lg">Menu</TabsTrigger>
             <TabsTrigger value="delivery" className="rounded-lg">Order Delivery</TabsTrigger>
@@ -112,13 +314,21 @@ export default function Restaurant() {
             {/* Menu Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {filteredMenu.map((item, index) => (
-                <Card 
-                  key={item.id} 
+                <Card
+                  key={item.id}
                   className="overflow-hidden hover:shadow-medium transition-all hover:-translate-y-1 animate-fade-in"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <div className="h-40 bg-secondary flex items-center justify-center text-6xl">
-                    {item.image}
+                  <div className="h-40 bg-secondary flex items-center justify-center overflow-hidden">
+                    {(item.image?.startsWith('http') || item.image?.startsWith('/')) ? (
+                      <img
+                        src={getImageUrl(item.image) || ""}
+                        alt={item.name}
+                        className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                      />
+                    ) : (
+                      <span className="text-6xl">{item.image}</span>
+                    )}
                   </div>
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start mb-2">
@@ -159,7 +369,9 @@ export default function Restaurant() {
                 </div>
                 <div className="h-6 w-px bg-primary-foreground/20" />
                 <span className="font-bold">₵{cartTotal.toLocaleString()}</span>
-                <Button variant="hero" size="sm">Checkout</Button>
+                <Button variant="hero" size="sm" onClick={handleCheckout} disabled={isLoading}>
+                  {isLoading ? 'Processing...' : 'Checkout'}
+                </Button>
               </div>
             )}
           </TabsContent>
@@ -182,15 +394,27 @@ export default function Restaurant() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">Delivery Address</label>
-                      <Input placeholder="Enter your full address" />
+                      <Input
+                        placeholder="Enter your full address"
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-2">Phone Number</label>
-                      <Input placeholder="+233 20 000 0000" />
+                      <Input
+                        placeholder="+233 20 000 0000"
+                        value={deliveryPhone}
+                        onChange={(e) => setDeliveryPhone(e.target.value)}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-2">Special Instructions</label>
-                      <Input placeholder="Any special requests..." />
+                      <Input
+                        placeholder="Any special requests..."
+                        value={deliveryInstructions}
+                        onChange={(e) => setDeliveryInstructions(e.target.value)}
+                      />
                     </div>
 
                     <div className="bg-secondary rounded-xl p-4 mt-6">
@@ -216,8 +440,14 @@ export default function Restaurant() {
                       )}
                     </div>
 
-                    <Button className="w-full" size="lg" variant="gold" disabled={cart.length === 0}>
-                      Place Delivery Order
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      variant="gold"
+                      disabled={cart.length === 0 || isLoading}
+                      onClick={handleDeliveryOrder}
+                    >
+                      {isLoading ? 'Processing...' : 'Place Delivery Order'}
                     </Button>
                   </div>
                 </CardContent>
@@ -258,7 +488,11 @@ export default function Restaurant() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">Select Time</label>
-                        <select className="w-full h-11 px-3 rounded-lg border border-input bg-background">
+                        <select
+                          className="w-full h-11 px-3 rounded-lg border border-input bg-background"
+                          value={bookingTime}
+                          onChange={(e) => setBookingTime(e.target.value)}
+                        >
                           <option>12:00 PM</option>
                           <option>1:00 PM</option>
                           <option>2:00 PM</option>
@@ -284,22 +518,40 @@ export default function Restaurant() {
 
                     <div>
                       <label className="block text-sm font-medium mb-2">Special Requests</label>
-                      <Input placeholder="Birthday celebration, window seat, etc." />
+                      <Input
+                        placeholder="Birthday celebration, window seat, etc."
+                        value={specialRequests}
+                        onChange={(e) => setSpecialRequests(e.target.value)}
+                      />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium mb-2">Your Name</label>
-                        <Input placeholder="Kwame Mensah" />
+                        <Input
+                          placeholder="Dauda Kwame"
+                          value={bookingName}
+                          onChange={(e) => setBookingName(e.target.value)}
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-medium mb-2">Phone Number</label>
-                        <Input placeholder="+233 20 000 0000" />
+                        <Input
+                          placeholder="+233 20 000 0000"
+                          value={bookingPhone}
+                          onChange={(e) => setBookingPhone(e.target.value)}
+                        />
                       </div>
                     </div>
 
-                    <Button className="w-full" size="lg" variant="gold">
-                      Confirm Reservation
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      variant="gold"
+                      onClick={handleTableBooking}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Processing...' : 'Confirm Reservation'}
                     </Button>
                   </div>
                 </CardContent>
