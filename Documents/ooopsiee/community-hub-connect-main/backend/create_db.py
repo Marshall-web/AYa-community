@@ -1,12 +1,17 @@
 import psycopg2
+import os
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from dotenv import load_dotenv
 
-# Credentials from settings.py
-DB_NAME = "AYA-Community-db"
-USER = "postgres"
-PASSWORD = "GhanaDior1000$"
-HOST = "localhost"
-PORT = "5432"
+# Load environment variables
+load_dotenv()
+
+# Credentials from environment variables
+DB_NAME = os.getenv('DB_NAME', 'AYA-Community-db')
+USER = os.getenv('DB_USER', 'postgres')
+PASSWORD = os.getenv('DB_PASSWORD', '')
+HOST = os.getenv('DB_HOST', 'localhost')
+PORT = os.getenv('DB_PORT', '5432')
 
 try:
     # Connect to the specific database
