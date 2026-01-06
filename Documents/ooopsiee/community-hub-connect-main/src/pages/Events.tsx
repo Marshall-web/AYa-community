@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import eventHallImg from "@/assets/event-hall.jpg";
+import eventHallImg from "@/assets/Event-space.jpg";
 import api from "@/lib/api";
 
 const eventPackages = [
@@ -76,7 +76,7 @@ const addOns = [
   { icon: Sparkles, name: "Extra Decorations", price: "From ₵30" },
 ];
 
-const eventTypes = ["Wedding", "Birthday", "Conference", "Corporate Event", "Anniversary", "Graduation", "Other"];
+const eventTypes = ["Wedding", "Birthday", "Conference", "Meeting", "Corporate Event", "Anniversary", "Graduation", "Other"];
 
 export default function Events() {
   const [date, setDate] = useState<Date>();
@@ -128,31 +128,54 @@ export default function Events() {
       return;
     }
 
+    const selectedPkg = eventPackages.find(pkg => pkg.name === selectedPackage);
+    const packagePrice = selectedPkg?.price || 0;
+    const bookingType = `Event - ${eventType}`;
+    const bookingDate = format(date, "PPP");
+
+    // Check availability before proceeding to payment
     setIsLoading(true);
     setMessage(null);
 
     try {
-      await api.post('/bookings/', {
-        guest_name: name,
-        booking_type: `Event - ${eventType}`,
-        date: `${format(date, "PPP")} | Package: ${selectedPackage} | Guests: ${guestCount} | Duration: ${duration} | Phone: ${phone} | Email: ${email} | Details: ${additionalDetails}`,
-        status: "Pending"
+      const response = await api.post('/bookings/check_availability/', {
+        booking_type: bookingType,
+        date: bookingDate,
       });
 
-      setMessage({ type: 'success', text: 'Event booking request submitted successfully!' });
-      setDate(undefined);
-      setSelectedPackage(null);
-      setEventType("");
-      setGuestCount("");
-      setName("");
-      setPhone("");
-      setEmail("");
-      setAdditionalDetails("");
-      setDuration("4 hours");
-      setTimeout(() => setMessage(null), 3000);
+      if (!response.data.available) {
+        setMessage({ 
+          type: 'error', 
+          text: response.data.message || 'This event slot is already booked. Please select a different date.' 
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Navigate to payment page with booking data
+      navigate("/payment", {
+        state: {
+          orderType: "booking",
+          bookingType: bookingType,
+          items: [{
+            id: 1,
+            name: `Event Package - ${selectedPackage}`,
+            quantity: 1,
+            price: packagePrice,
+          }],
+          total: packagePrice,
+          bookingName: name,
+          bookingPhone: phone,
+          bookingEmail: email,
+          bookingDate: bookingDate,
+          bookingDetails: `Package: ${selectedPackage} | Guests: ${guestCount} | Duration: ${duration}${additionalDetails ? ` | Details: ${additionalDetails}` : ''}`,
+          guests: parseInt(guestCount) || 0,
+          specialRequests: additionalDetails,
+        }
+      });
     } catch (error: any) {
-      console.error('Event booking error:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to submit booking.';
+      console.error('Availability check error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to check availability. Please try again.';
       setMessage({ type: 'error', text: errorMsg });
     } finally {
       setIsLoading(false);
@@ -209,15 +232,15 @@ export default function Events() {
             <span className="inline-block px-4 py-2 bg-accent/20 backdrop-blur-sm rounded-full text-accent font-medium text-sm mb-4">
               Celebrate Life's Moments
             </span>
-            <h1 className="font-display text-5xl md:text-6xl font-bold mb-4">Event Space</h1>
-            <p className="text-xl text-primary-foreground/90 max-w-xl mx-auto">
-              A magnificent venue for weddings, conferences, and celebrations of all kinds.
+            <h1 className="font-display text-3xl md:text-6xl font-bold mb-4">Event Space</h1>
+            <p className="text-lg md:text-xl text-primary-foreground/90 max-w-xl mx-auto">
+              A magnificent venue for weddings, conferences, meetings, and celebrations of all kinds.
             </p>
           </div>
         </div>
       </section>
 
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-8 md:py-12">
         {/* Success/Error Message */}
         {message && (
           <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg animate-scale-in ${message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
@@ -410,9 +433,8 @@ export default function Events() {
                   size="lg"
                   variant="gold"
                   onClick={handleEventBooking}
-                  disabled={isLoading}
                 >
-                  {isLoading ? 'Processing...' : 'Submit Booking Request'}
+                  Proceed to Payment - ₵{selectedPackage ? (eventPackages.find(pkg => pkg.name === selectedPackage)?.price || 0).toLocaleString() : '0'}
                 </Button>
               </CardContent>
             </Card>
@@ -519,7 +541,7 @@ export default function Events() {
                     <div>
                       <label className="block text-sm font-medium mb-2">Message (Optional)</label>
                       <Textarea
-                        placeholder="Tell us about your event needs..."
+                        placeholder="Tell us about your event or meeting needs..."
                         rows={3}
                         value={consultMessage}
                         onChange={(e) => setConsultMessage(e.target.value)}

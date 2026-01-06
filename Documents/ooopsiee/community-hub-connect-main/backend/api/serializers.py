@@ -12,8 +12,8 @@ class BookingSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Booking
-        fields = ['id', 'guest_name', 'booking_type', 'date', 'status', 'user']
-        extra_kwargs = {'user': {'required': False}}
+        fields = ['id', 'guest_name', 'booking_type', 'date', 'status', 'user', 'slots']
+        extra_kwargs = {'user': {'required': False}, 'slots': {'required': False}}
     
     def to_representation(self, instance):
         """Customize output to match frontend expectations"""

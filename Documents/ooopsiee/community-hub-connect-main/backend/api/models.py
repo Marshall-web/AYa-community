@@ -26,6 +26,7 @@ class Booking(models.Model):
     booking_type = models.CharField(max_length=100) # Restaurant, Pool, etc.
     date = models.CharField(max_length=255) # Keep as string for now to match frontend or use DateTimeField
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    slots = models.IntegerField(default=1, help_text="Number of slots/guests/swimmers for this booking")  # For pool sessions, this represents number of swimmers
 
     def __str__(self):
         return f"{self.guest_name} - {self.booking_type}"

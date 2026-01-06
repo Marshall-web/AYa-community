@@ -14,8 +14,20 @@ import {
   CalendarIcon, Clock, Users, ShoppingBag, Plus, Minus,
   Phone, MapPin, ChefHat, Star, Truck
 } from "lucide-react";
-import restaurantImg from "@/assets/restaurant.jpg";
+import diningSpaceImg from "@/assets/Dinning-Space.jpg";
+import diningTableImg from "@/assets/Dinning-Table.jpg";
+import kitchenImg from "@/assets/Kitchen.jpg";
+import tableImg from "@/assets/table.jpg";
+import table2Img from "@/assets/table2.jpg";
 import api from "@/lib/api";
+
+const restaurantSlides = [
+  { src: diningSpaceImg, alt: "Dining Space" },
+  { src: diningTableImg, alt: "Dining Table" },
+  { src: kitchenImg, alt: "Our Kitchen" },
+  { src: tableImg, alt: "Restaurant Table" },
+  { src: table2Img, alt: "Intimate Dining" },
+];
 
 const menuCategories = ["All", "Starters", "Main Course", "Grills", "Desserts", "Drinks"];
 
@@ -44,14 +56,20 @@ interface MenuItem {
 export default function Restaurant() {
   const [activeTab, setActiveTab] = useState("menu");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % restaurantSlides.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
   const [cart, setCart] = useState<{ id: number; quantity: number }[]>([]);
   const [date, setDate] = useState<Date>();
   const [guests, setGuests] = useState(2);
-  const [orderType, setOrderType] = useState<"dine" | "delivery">("dine");
 
   // Dynamic Menu State
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [isLoadingMenu, setIsLoadingMenu] = useState(true);
 
   // Form state
   const [bookingName, setBookingName] = useState("");
@@ -88,8 +106,6 @@ export default function Restaurant() {
       } catch (error) {
         console.error("Failed to fetch menu:", error);
         setMessage({ type: 'error', text: "Failed to load menu items." });
-      } finally {
-        setIsLoadingMenu(false);
       }
     };
 
@@ -170,7 +186,7 @@ export default function Restaurant() {
     return phoneRegex.test(phone.replace(/\s/g, '')); // Remove spaces before checking
   };
 
-  const handleDeliveryOrder = async () => {
+  const handleDeliveryOrder = () => {
     if (!isAuthenticated) {
       navigate("/auth");
       return;
@@ -186,35 +202,30 @@ export default function Restaurant() {
       return;
     }
 
-    setIsLoading(true);
-    setMessage(null);
-
-    try {
+    // Prepare order items for payment page
       const orderItems = cart.map(cartItem => {
         const item = menuItems.find(m => m.id === cartItem.id);
-        return `${item?.name} x${cartItem.quantity}`;
-      }).join(", ");
+      if (!item) return null;
+      return {
+        id: item.id,
+        name: item.name,
+        quantity: cartItem.quantity,
+        price: item.price
+      };
+    }).filter((item): item is { id: number; name: string; quantity: number; price: number } => item !== null);
 
-      await api.post('/orders/', {
-        customer_name: deliveryAddress, // Keeping address as customer identifier for delivery for now, or could combine
-        items: `${orderItems} | Phone: ${deliveryPhone} | Instructions: ${deliveryInstructions}`,
-        total_price: cartTotal,
-        status: "Pending"
-      });
-
-      setMessage({ type: 'success', text: 'Delivery order placed successfully!' });
-      setCart([]);
-      setDeliveryAddress("");
-      setDeliveryPhone("");
-      setDeliveryInstructions("");
-      setTimeout(() => setMessage(null), 3000);
-    } catch (error: any) {
-      console.error('Delivery order error:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to place delivery order.';
-      setMessage({ type: 'error', text: errorMsg });
-    } finally {
-      setIsLoading(false);
-    }
+    // Navigate to payment page with order data
+    navigate("/payment", {
+      state: {
+        orderType: "delivery",
+        items: orderItems,
+        total: cartTotal,
+        customerName: user?.first_name || user?.username || "",
+        deliveryAddress,
+        deliveryPhone,
+        deliveryInstructions
+      }
+    });
   };
 
   const handleTableBooking = async () => {
@@ -233,27 +244,66 @@ export default function Restaurant() {
       return;
     }
 
+    const bookingType = "Restaurant Table Booking";
+    const bookingDate = format(date, "PPP");
+
+    // Check availability before proceeding to payment
     setIsLoading(true);
     setMessage(null);
 
     try {
-      await api.post('/bookings/', {
-        guest_name: bookingName,
-        booking_type: "Restaurant",
-        date: `${format(date, "PPP")} at ${bookingTime} | Guests: ${guests} | Requests: ${specialRequests}`,
-        status: "Pending"
+      const response = await api.post('/bookings/check_availability/', {
+        booking_type: bookingType,
+        date: `${bookingDate} at ${bookingTime}`,
       });
 
-      setMessage({ type: 'success', text: 'Table reservation confirmed!' });
-      setDate(undefined);
-      setBookingName("");
-      setBookingPhone("");
-      setSpecialRequests("");
-      setGuests(2);
-      setTimeout(() => setMessage(null), 3000);
+      if (!response.data.available) {
+        setMessage({ 
+          type: 'error', 
+          text: response.data.message || 'This table slot is already booked. Please select a different date/time.' 
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // For table booking, we still need items if they ordered food
+      // If no items in cart, create a dummy item for the booking fee
+      const orderItems = cart.length > 0 
+        ? cart.map(cartItem => {
+            const item = menuItems.find(m => m.id === cartItem.id);
+            if (!item) return null;
+            return {
+              id: item.id,
+              name: item.name,
+              quantity: cartItem.quantity,
+              price: item.price
+            };
+          }).filter((item): item is { id: number; name: string; quantity: number; price: number } => item !== null)
+        : [{
+            id: 0,
+            name: "Table Reservation",
+            quantity: 1,
+            price: 0 // Free reservation, or set a booking fee if needed
+          }];
+
+      // Navigate to payment page with booking data
+      navigate("/payment", {
+        state: {
+          orderType: "booking",
+          bookingType: bookingType,
+          items: orderItems,
+          total: cartTotal,
+          bookingName,
+          bookingPhone,
+          bookingDate: bookingDate,
+          bookingTime,
+          guests,
+          specialRequests
+        }
+      });
     } catch (error: any) {
-      console.error('Booking error:', error);
-      const errorMsg = error.response?.data?.detail || error.message || 'Failed to book table.';
+      console.error('Availability check error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Failed to check availability. Please try again.';
       setMessage({ type: 'error', text: errorMsg });
     } finally {
       setIsLoading(false);
@@ -263,23 +313,35 @@ export default function Restaurant() {
   return (
     <Layout>
       {/* Hero */}
-      <section className="relative h-[50vh] min-h-[400px]">
-        <img src={restaurantImg} alt="Restaurant" className="w-full h-full object-cover" />
+      <section className="relative h-[50vh] min-h-[400px] overflow-hidden">
+        {restaurantSlides.map((slide, index) => (
+          <div
+            key={index}
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? "opacity-100" : "opacity-0"
+              }`}
+          >
+            <img
+              src={slide.src}
+              alt={slide.alt}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
         <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/50 to-transparent" />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center text-primary-foreground">
             <span className="inline-block px-4 py-2 bg-accent/20 backdrop-blur-sm rounded-full text-accent font-medium text-sm mb-4">
               Fine Dining & Delivery
             </span>
-            <h1 className="font-display text-5xl md:text-6xl font-bold mb-4">Our Restaurant</h1>
-            <p className="text-xl text-primary-foreground/90 max-w-xl mx-auto">
+            <h1 className="font-display text-3xl md:text-6xl font-bold mb-4">Our Restaurant</h1>
+            <p className="text-lg md:text-xl text-primary-foreground/90 max-w-xl mx-auto">
               Experience authentic flavors in an elegant setting, or enjoy at home with delivery.
             </p>
           </div>
         </div>
       </section>
 
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-8 md:py-12">
         {/* Success/Error Message */}
         {message && (
           <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg animate-scale-in ${message.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
@@ -447,7 +509,7 @@ export default function Restaurant() {
                       disabled={cart.length === 0 || isLoading}
                       onClick={handleDeliveryOrder}
                     >
-                      {isLoading ? 'Processing...' : 'Place Delivery Order'}
+                      {isLoading ? 'Processing...' : 'Proceed to Payment'}
                     </Button>
                   </div>
                 </CardContent>
@@ -551,7 +613,7 @@ export default function Restaurant() {
                       onClick={handleTableBooking}
                       disabled={isLoading}
                     >
-                      {isLoading ? 'Processing...' : 'Confirm Reservation'}
+                      {isLoading ? 'Processing...' : 'Proceed to Payment'}
                     </Button>
                   </div>
                 </CardContent>

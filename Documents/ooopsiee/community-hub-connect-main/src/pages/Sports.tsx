@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/layout/Layout";
@@ -11,84 +11,70 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
-  CalendarIcon, Clock, Users, Waves, Shield, Sun,
-  Check, Star, CreditCard
+  CalendarIcon, Clock, Users, Activity, Shield, Check, Star,
+  CreditCard, Target, Trophy, Play
 } from "lucide-react";
-import poolAreaImg from "@/assets/Pool-Area.jpg";
-import poolDayImg from "@/assets/Pool-Day.jpg";
-import poolPrimaryImg from "@/assets/Pool.jpg";
-import pool2Img from "@/assets/Pool2.jpg";
-import pool3Img from "@/assets/pool3.jpg";
-import nightPoolImg from "@/assets/Night-pool.jpg";
+import tennisCourtImg from "@/assets/tennis-court.jpg";
+import volleyballCourtImg from "@/assets/volleyball-court.jpg";
 import api from "@/lib/api";
 
-const poolSlides = [
-  { src: poolAreaImg, alt: "Pool Area" },
-  { src: poolDayImg, alt: "Pool Day" },
-  { src: poolPrimaryImg, alt: "Main Pool" },
-  { src: pool2Img, alt: "Clear Waters" },
-  { src: pool3Img, alt: "Poolside Perspective" },
-  { src: nightPoolImg, alt: "Pool at Night" },
+const courtTypes = [
+  { id: "tennis", name: "Tennis Court", icon: Target, color: "text-green-500" },
+  { id: "volleyball", name: "Volleyball Court", icon: Trophy, color: "text-blue-500" },
 ];
 
 const sessions = [
-  { time: "6:00 AM - 8:00 AM", available: 15, price: 20 },
-  { time: "8:00 AM - 10:00 AM", available: 8, price: 20 },
-  { time: "10:00 AM - 12:00 PM", available: 20, price: 25 },
-  { time: "2:00 PM - 4:00 PM", available: 25, price: 25 },
-  { time: "4:00 PM - 6:00 PM", available: 5, price: 30 },
-  { time: "6:00 PM - 8:00 PM", available: 12, price: 30 },
+  { time: "6:00 AM - 8:00 AM", available: 2, price: 40 },
+  { time: "8:00 AM - 10:00 AM", available: 2, price: 40 },
+  { time: "10:00 AM - 12:00 PM", available: 1, price: 50 },
+  { time: "2:00 PM - 4:00 PM", available: 2, price: 50 },
+  { time: "4:00 PM - 6:00 PM", available: 1, price: 60 },
+  { time: "6:00 PM - 8:00 PM", available: 2, price: 60 },
 ];
 
-const memberships = [
+const packages = [
   {
-    name: "Daily Pass",
-    price: 30,
-    period: "day",
-    features: ["Single day access", "Locker included", "Towel service"],
-    popular: false
-  },
-  {
-    name: "Monthly",
-    price: 250,
+    name: "Adult Membership",
+    price: 450,
     period: "month",
-    features: ["Unlimited sessions", "Free locker", "10% restaurant discount", "Guest pass (2x)"],
+    features: [
+      "Unlimited court access",
+      "Prime time booking priority",
+      "Tournament participation",
+      "Equipment rental included",
+      "Locker access",
+    ],
     popular: true
   },
   {
-    name: "Annual",
-    price: 2000,
-    period: "year",
-    features: ["Unlimited access", "Premium locker", "20% all discounts", "Free swim lessons", "Priority booking"],
+    name: "Family Package",
+    price: 700,
+    period: "month",
+    features: [
+      "Up to 4 family members",
+      "Unlimited adult court access",
+      "Kids playing ground access",
+      "Weekend tournaments",
+      "20% restaurant discount",
+    ],
     popular: false
   },
 ];
 
 const features = [
-  { icon: Waves, title: "Olympic-Size Pool", description: "50m heated pool with 8 lanes" },
-  { icon: Sun, title: "Outdoor Deck", description: "Lounge chairs and umbrellas" },
-  { icon: Shield, title: "Lifeguards", description: "Trained staff on duty" },
-  { icon: Users, title: "Swim Classes", description: "For all ages and levels" },
+  { icon: Activity, title: "Professional Courts", description: "Well-maintained Tennis & Volleyball courts for adults" },
+  { icon: Users, title: "Adults Only", description: "Tennis and Volleyball courts reserved for adults" },
+  { icon: Play, title: "Kids Playing Ground", description: "Separate playing ground for kids activities" },
+  { icon: Trophy, title: "Tournaments", description: "Regular competitions and events" },
 ];
 
-export default function Pool() {
+export default function Sports() {
   const [date, setDate] = useState<Date>();
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const [currentSlide, setCurrentSlide] = useState(0);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % poolSlides.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
-  const [swimmers, setSwimmers] = useState(1);
-
-  // Form state
+  const [selectedCourt, setSelectedCourt] = useState<"tennis" | "volleyball" | null>(null);
+  const [participants, setParticipants] = useState(1);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-
-  // Loading and message state
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -96,18 +82,17 @@ export default function Pool() {
   const navigate = useNavigate();
 
   const validatePhone = (phone: string) => {
-    // Accepts 10 digits (e.g., 0201234567) OR +233 followed by 9 digits (e.g., +233201234567)
     const phoneRegex = /^(\d{10}|\+233\d{9})$/;
-    return phoneRegex.test(phone.replace(/\s/g, '')); // Remove spaces before checking
+    return phoneRegex.test(phone.replace(/\s/g, ''));
   };
 
-  const handleSessionBooking = async () => {
+  const handleCourtBooking = async () => {
     if (!isAuthenticated) {
       navigate("/auth");
       return;
     }
 
-    if (!date || !selectedSession || !fullName || !phone) {
+    if (!date || !selectedSession || !selectedCourt || !fullName || !phone) {
       setMessage({ type: 'error', text: 'Please fill in all required fields.' });
       return;
     }
@@ -118,9 +103,11 @@ export default function Pool() {
     }
 
     const selectedSessionData = sessions.find(s => s.time === selectedSession);
-    const totalPrice = (selectedSessionData?.price || 0) * swimmers;
+    const totalPrice = (selectedSessionData?.price || 0) * participants;
+    const courtName = selectedCourt === "tennis" ? "Tennis" : "Volleyball";
+    const bookingType = `${courtName} Court Booking`;
     const bookingDate = format(date, "PPP");
-    const bookingDetails = `Session: ${selectedSession} | Swimmers: ${swimmers}`;
+    const bookingDetails = `Court: ${courtName} | Session: ${selectedSession} | Participants: ${participants}`;
 
     // Check availability before proceeding to payment
     setIsLoading(true);
@@ -128,15 +115,14 @@ export default function Pool() {
 
     try {
       const response = await api.post('/bookings/check_availability/', {
-        booking_type: "Pool Session",
+        booking_type: bookingType,
         date: `${bookingDate} at ${selectedSession}`,
-        slots: swimmers,  // Send number of swimmers (slots) being requested
       });
 
       if (!response.data.available) {
         setMessage({ 
           type: 'error', 
-          text: response.data.message || 'This pool session is already booked. Please select a different date/time.' 
+          text: response.data.message || 'This court session is already booked. Please select a different date/time.' 
         });
         setIsLoading(false);
         return;
@@ -146,11 +132,11 @@ export default function Pool() {
       navigate("/payment", {
         state: {
           orderType: "booking",
-          bookingType: "Pool Session",
+          bookingType: bookingType,
           items: [{
             id: 1,
-            name: `Pool Session - ${selectedSession}`,
-            quantity: swimmers,
+            name: `${courtName} Court - ${selectedSession}`,
+            quantity: participants,
             price: selectedSessionData?.price || 0,
           }],
           total: totalPrice,
@@ -159,7 +145,6 @@ export default function Pool() {
           bookingDate: bookingDate,
           bookingTime: selectedSession,
           bookingDetails: bookingDetails,
-          slots: swimmers,  // Include slots for backend
         }
       });
     } catch (error: any) {
@@ -171,7 +156,7 @@ export default function Pool() {
     }
   };
 
-  const handleMembershipPurchase = (membershipName: string, price: number) => {
+  const handlePackagePurchase = (packageName: string, price: number) => {
     if (!isAuthenticated) {
       navigate("/auth");
       return;
@@ -187,21 +172,21 @@ export default function Pool() {
       return;
     }
 
-    // Navigate to payment page with membership data
+    // Navigate to payment page with package data
     navigate("/payment", {
       state: {
         orderType: "booking",
-        bookingType: `Pool Membership - ${membershipName}`,
+        bookingType: `Sports Package - ${packageName}`,
         items: [{
           id: 1,
-          name: `Pool Membership - ${membershipName}`,
+          name: `Sports Package - ${packageName}`,
           quantity: 1,
           price: price,
         }],
         total: price,
         bookingName: fullName,
         bookingPhone: phone,
-        bookingDetails: `Membership: ${membershipName}`,
+        bookingDetails: `Package: ${packageName}`,
       }
     });
   };
@@ -210,28 +195,20 @@ export default function Pool() {
     <Layout>
       {/* Hero */}
       <section className="relative h-[50vh] min-h-[400px] overflow-hidden">
-        {poolSlides.map((slide, index) => (
-          <div
-            key={index}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? "opacity-100" : "opacity-0"
-              }`}
-          >
-            <img
-              src={slide.src}
-              alt={slide.alt}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ))}
+        <img
+          src={tennisCourtImg}
+          alt="Sports Courts - Tennis and Volleyball"
+          className="w-full h-full object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/50 to-transparent" />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center text-primary-foreground">
             <span className="inline-block px-4 py-2 bg-accent/20 backdrop-blur-sm rounded-full text-accent font-medium text-sm mb-4">
-              Dive Into Relaxation
+              Stay Active & Healthy
             </span>
-            <h1 className="font-display text-3xl md:text-6xl font-bold mb-4">Swimming Pool</h1>
+            <h1 className="font-display text-3xl md:text-6xl font-bold mb-4">Sports Activities</h1>
             <p className="text-lg md:text-xl text-primary-foreground/90 max-w-xl mx-auto">
-              Crystal clear waters await. Book a session or become a member today.
+              Tennis and Volleyball courts for adults. Kids have access to our playing ground.
             </p>
           </div>
         </div>
@@ -245,6 +222,37 @@ export default function Pool() {
             {message.text}
           </div>
         )}
+
+        {/* Court Images Gallery */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
+          <Card className="overflow-hidden hover:shadow-medium transition-all">
+            <div className="h-64 overflow-hidden">
+              <img
+                src={tennisCourtImg}
+                alt="Tennis Court"
+                className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+              />
+            </div>
+            <CardContent className="p-4">
+              <h3 className="font-display font-semibold text-center">Tennis Court</h3>
+              <p className="text-sm text-muted-foreground text-center mt-1">Professional tennis court for adults</p>
+            </CardContent>
+          </Card>
+          <Card className="overflow-hidden hover:shadow-medium transition-all">
+            <div className="h-64 overflow-hidden">
+              <img
+                src={volleyballCourtImg}
+                alt="Volleyball Court"
+                className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+              />
+            </div>
+            <CardContent className="p-4">
+              <h3 className="font-display font-semibold text-center">Volleyball Court</h3>
+              <p className="text-sm text-muted-foreground text-center mt-1">Well-maintained volleyball court for adults</p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Features */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
           {features.map((feature, i) => (
@@ -257,12 +265,38 @@ export default function Pool() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Session Booking */}
+          {/* Court Booking */}
           <div>
-            <h2 className="section-title text-3xl mb-6">Book a Session</h2>
+            <h2 className="section-title text-3xl mb-2">Book a Court</h2>
+            <p className="text-muted-foreground mb-6 text-sm">Tennis and Volleyball courts are available for adults only (18+ years)</p>
 
             <Card className="shadow-medium">
               <CardContent className="p-6 space-y-6">
+                {/* Court Selection */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Select Court</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {courtTypes.map((court) => {
+                      const Icon = court.icon;
+                      return (
+                        <button
+                          key={court.id}
+                          onClick={() => setSelectedCourt(court.id as "tennis" | "volleyball")}
+                          className={cn(
+                            "flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all",
+                            selectedCourt === court.id
+                              ? "border-accent bg-accent/10"
+                              : "border-border hover:border-accent/50"
+                          )}
+                        >
+                          <Icon className={cn("w-8 h-8 mb-2", court.color)} />
+                          <span className="font-medium text-sm">{court.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Date Picker */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Select Date</label>
@@ -299,8 +333,8 @@ export default function Pool() {
                           <span className="font-medium">{session.time}</span>
                         </div>
                         <div className="flex items-center gap-4">
-                          <Badge variant={session.available < 10 ? "destructive" : "secondary"}>
-                            {session.available} spots
+                          <Badge variant={session.available < 2 ? "destructive" : "secondary"}>
+                            {session.available} available
                           </Badge>
                           <span className="font-bold">₵{session.price.toLocaleString()}</span>
                         </div>
@@ -309,13 +343,13 @@ export default function Pool() {
                   </div>
                 </div>
 
-                {/* Number of Swimmers */}
+                {/* Number of Participants */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">Number of Swimmers</label>
+                  <label className="block text-sm font-medium mb-2">Number of Participants</label>
                   <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => setSwimmers(Math.max(1, swimmers - 1))}>-</Button>
-                    <span className="text-2xl font-bold w-12 text-center">{swimmers}</span>
-                    <Button variant="outline" size="icon" onClick={() => setSwimmers(Math.min(10, swimmers + 1))}>+</Button>
+                    <Button variant="outline" size="icon" onClick={() => setParticipants(Math.max(1, participants - 1))}>-</Button>
+                    <span className="text-2xl font-bold w-12 text-center">{participants}</span>
+                    <Button variant="outline" size="icon" onClick={() => setParticipants(Math.min(10, participants + 1))}>+</Button>
                   </div>
                 </div>
 
@@ -343,30 +377,30 @@ export default function Pool() {
                   className="w-full"
                   size="lg"
                   variant="gold"
-                  disabled={!date || !selectedSession}
-                  onClick={handleSessionBooking}
+                  disabled={!date || !selectedSession || !selectedCourt}
+                  onClick={handleCourtBooking}
                 >
-                  Proceed to Payment - ₵{selectedSession ? (sessions.find(s => s.time === selectedSession)?.price || 0) * swimmers : 0}
+                  Proceed to Payment - ₵{selectedSession ? (sessions.find(s => s.time === selectedSession)?.price || 0) * participants : 0}
                 </Button>
               </CardContent>
             </Card>
           </div>
 
-          {/* Memberships */}
+          {/* Packages */}
           <div>
-            <h2 className="section-title text-3xl mb-6">Memberships</h2>
+            <h2 className="section-title text-3xl mb-6">Membership Packages</h2>
 
             <div className="space-y-4">
-              {memberships.map((membership, i) => (
+              {packages.map((pkg, i) => (
                 <Card
-                  key={membership.name}
+                  key={pkg.name}
                   className={cn(
                     "relative overflow-hidden transition-all hover:shadow-medium animate-fade-in",
-                    membership.popular && "ring-2 ring-accent"
+                    pkg.popular && "ring-2 ring-accent"
                   )}
                   style={{ animationDelay: `${i * 100}ms` }}
                 >
-                  {membership.popular && (
+                  {pkg.popular && (
                     <div className="absolute top-4 right-4">
                       <Badge className="bg-accent text-accent-foreground">
                         <Star className="w-3 h-3 mr-1" /> Most Popular
@@ -376,15 +410,15 @@ export default function Pool() {
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div>
-                        <h3 className="font-display text-xl font-bold">{membership.name}</h3>
+                        <h3 className="font-display text-xl font-bold">{pkg.name}</h3>
                         <div className="flex items-baseline gap-1 mt-1">
-                          <span className="text-3xl font-bold text-foreground">₵{membership.price.toLocaleString()}</span>
-                          <span className="text-muted-foreground">/{membership.period}</span>
+                          <span className="text-3xl font-bold text-foreground">₵{pkg.price.toLocaleString()}</span>
+                          <span className="text-muted-foreground">/{pkg.period}</span>
                         </div>
                       </div>
                     </div>
                     <ul className="space-y-2 mb-6">
-                      {membership.features.map((feature) => (
+                      {pkg.features.map((feature) => (
                         <li key={feature} className="flex items-center gap-2 text-sm">
                           <Check className="w-4 h-4 text-accent" />
                           {feature}
@@ -393,11 +427,11 @@ export default function Pool() {
                     </ul>
                     <Button
                       className="w-full"
-                      variant={membership.popular ? "gold" : "outline"}
-                      onClick={() => handleMembershipPurchase(membership.name, membership.price)}
+                      variant={pkg.popular ? "gold" : "outline"}
+                      onClick={() => handlePackagePurchase(pkg.name, pkg.price)}
                     >
                       <CreditCard className="w-4 h-4 mr-2" />
-                      Get {membership.name} - ₵{membership.price.toLocaleString()}
+                      Get {pkg.name} - ₵{pkg.price.toLocaleString()}
                     </Button>
                   </CardContent>
                 </Card>
@@ -406,25 +440,58 @@ export default function Pool() {
           </div>
         </div>
 
-        {/* Safety Guidelines */}
-        <Card className="mt-16 bg-secondary">
+        {/* Kids Playing Ground Section */}
+        <Card className="mt-16 bg-primary text-primary-foreground">
+          <CardContent className="p-8">
+            <div className="flex items-start gap-6">
+              <div className="w-16 h-16 rounded-xl bg-accent/20 flex items-center justify-center shrink-0">
+                <Play className="w-8 h-8 text-accent" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-display text-2xl font-bold mb-2">Kids Playing Ground</h3>
+                <p className="text-primary-foreground/80 mb-4">
+                  We have a dedicated playing ground for kids where they can enjoy various activities and play games. 
+                  The playing ground is available for children of all ages and provides a safe, supervised environment for fun and recreation.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  {[
+                    "Safe and supervised environment",
+                    "Various playground activities",
+                    "Open to all children",
+                  ].map((feature, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Check className="w-5 h-5 text-accent shrink-0" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-primary-foreground/80 mt-4 text-sm">
+                  <strong>Note:</strong> Tennis and Volleyball courts are reserved for adults only. Kids can enjoy the playing ground with supervision.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Safety & Guidelines */}
+        <Card className="mt-8 bg-secondary">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="w-6 h-6 text-accent" />
-              Pool Safety Guidelines
+              Court Rules & Guidelines (Adults Only)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                "Shower before entering the pool",
-                "Children under 12 must be supervised",
-                "No diving in shallow areas",
-                "No food or drinks in pool area",
-                "Follow lifeguard instructions",
+                "Adults only (18+ years)",
+                "Proper sports attire required",
+                "Equipment available for rent",
+                "Respect court booking times",
+                "Follow coach instructions",
                 "Report any injuries immediately",
-                "Proper swimwear required",
-                "No running on pool deck",
+                "No food on the courts",
+                "Maintain sportsmanship",
               ].map((rule, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
                   <Check className="w-4 h-4 text-accent shrink-0 mt-0.5" />
@@ -438,3 +505,4 @@ export default function Pool() {
     </Layout>
   );
 }
+
