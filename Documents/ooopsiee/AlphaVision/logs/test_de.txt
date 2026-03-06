@@ -1,0 +1,34 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\DIOR\AppData\Local\Programs\Python\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\DIOR\Documents\ooopsiee\AlphaVision
+plugins: anyio-4.12.1, dash-4.0.0, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 10 items
+
+tests/test_decision_engine.py::TestDecisionEngine::test_buy_signal PASSED [ 10%]
+tests/test_decision_engine.py::TestDecisionEngine::test_sell_signal PASSED [ 20%]
+tests/test_decision_engine.py::TestDecisionEngine::test_hold_signal_small_return PASSED [ 30%]
+tests/test_decision_engine.py::TestDecisionEngine::test_hold_signal_low_confidence PASSED [ 40%]
+tests/test_decision_engine.py::TestDecisionEngine::test_position_size_zero_for_hold PASSED [ 50%]
+tests/test_decision_engine.py::TestDecisionEngine::test_position_size_positive_for_buy FAILED [ 60%]
+tests/test_decision_engine.py::TestDecisionEngine::test_position_size_capped_at_25_pct PASSED [ 70%]
+tests/test_decision_engine.py::TestDecisionEngine::test_batch_signals_returns_dataframe PASSED [ 80%]
+tests/test_decision_engine.py::TestDecisionEngine::test_trade_signal_to_dict PASSED [ 90%]
+tests/test_decision_engine.py::TestDecisionEngine::test_signal_ticker_set_correctly PASSED [100%]
+
+================================== FAILURES ===================================
+___________ TestDecisionEngine.test_position_size_positive_for_buy ____________
+
+self = <tests.test_decision_engine.TestDecisionEngine object at 0x0000015E47CF7020>
+
+    def test_position_size_positive_for_buy(self):
+        ts = self.engine.generate_signal("AAPL", 0.05, 0.80, 150.0)
+>       assert ts.position_size > 0.0
+E       AssertionError: assert 0.0 > 0.0
+E        +  where 0.0 = TradeSignal(ticker='AAPL', signal=<Signal.BUY: 'BUY'>, confidence=0.8, predicted_return=0.05, price=150.0, position_size=0.0, notes=[]).position_size
+
+tests\test_decision_engine.py:47: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_decision_engine.py::TestDecisionEngine::test_position_size_positive_for_buy
+========================= 1 failed, 9 passed in 0.80s =========================

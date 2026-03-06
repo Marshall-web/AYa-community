@@ -1,0 +1,55 @@
+# AlphaVision – Docker ignore file
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Data (mounted as Docker volumes)
+data/raw/
+data/processed/
+data/features/
+data/cache/
+
+# Trained models (mounted as Docker volume)
+models/saved/
+models/checkpoints/
+
+# Logs
+logs/
+*.log
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment
+.env
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/
+
+# OS
+.DS_Store
+Thumbs.db
