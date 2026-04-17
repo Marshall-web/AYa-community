@@ -49,7 +49,10 @@ const getImageUrl = (imagePath?: string) => {
   }
   // If it's a relative path (starts with /), prepend backend URL
   if (imagePath.startsWith('/')) {
-    return `http://${window.location.hostname}:8000${imagePath}`;
+    const backendBase = import.meta.env.VITE_API_URL 
+        ? import.meta.env.VITE_API_URL.replace(/\/api\/$/, '') // Strip trailing /api/
+        : `http://${window.location.hostname}:8000`;
+    return `${backendBase}${imagePath}`;
   }
   return imagePath;
 };
