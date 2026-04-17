@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import dj_database_url
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -89,7 +90,15 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL'),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
+}
+# Fallback to individual variables if DATABASE_URL is not provided or empty
+if not os.getenv('DATABASE_URL'):
+    DATABASES['default'] = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DB_NAME', 'AYA-Community-db'),
         'USER': os.getenv('DB_USER', 'postgres'),
@@ -97,7 +106,6 @@ DATABASES = {
         'HOST': os.getenv('DB_HOST', '127.0.0.1'),
         'PORT': os.getenv('DB_PORT', '5432'),
     }
-}
 
 
 # Password validation
@@ -154,6 +162,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8080",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://a-ya-community.vercel.app",
 ]
 # Allow all origins only in debug mode
 CORS_ALLOW_ALL_ORIGINS = DEBUG
@@ -179,6 +188,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8080',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    "https://a-ya-community.vercel.app",
 ]
 if DEBUG:
     CSRF_TRUSTED_ORIGINS.append('http://172.20.10.4:8080')
